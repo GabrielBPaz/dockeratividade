@@ -63,6 +63,49 @@ Instruções detalhadas para configurar um ambiente de aplicação em Docker na 
 ## Passo 7: Criação de um Script para User Data
 
 1. Crie um script com os comandos acima (por exemplo, `setup.sh`).
+2. Exemplo
+   ```bash
+      #!/bin/bash
+ 
+      sudo yum update -y
+      sudo yum install docker -y
+      sudo systemctl start docker.service && systemctl enable docker.service
+      usermod -aG docker ec2-user
+ 
+      curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+      chmod +x /usr/local/bin/docker-compose
+ 
+      sudo yum install -y nfs-utils
+      sudo mkdir /mnt/efs
+      echo "fs-0c681f4886dda0762.efs.us-east-1.amazonaws.com:/ /mnt/efs nfs defaults 0 0" >> /etc/fstab
+      mount -a
+ 
+      sudo yum install -y mysql
+ 
+      sudo mkdir /Docker
+ 
+      sudo tee /Docker/docker-compose.yml <<EOF
+      version: '3.7'
+ 
+      services:
+        wordpress:
+          image: wordpress
+          restart: always
+          ports:
+            - 80:80
+          environment:
+            WORDPRESS_DB_HOST: docker-wordpress.cxgvimz3trpy.us-east-1.rds.amazonaws.com
+            WORDPRESS_DB_NAME: docker-wordpress
+            WORDPRESS_DB_USER: admin
+            WORDPRESS_DB_PASSWORD: admin1234
+          volumes: 
+            - /mnt/efs:/var/www/html
+      EOF
+ 
+      cd /Docker
+ 
+      docker-compose up -d
+      ```
 
 ## Passo 8: Criação de um Launch Configuration
 
@@ -79,7 +122,23 @@ Instruções detalhadas para configurar um ambiente de aplicação em Docker na 
 1. No Console AWS, vá para o serviço EC2 e clique em "Load Balancers".
 2. Crie um novo Classic Load Balancer para distribuir o tráfego.
 
-## Passo 11: Teste e Verificação
+## Pasoo 11: Configuração Banco de Dados
+
+1. Entre na instância.
+2. Conecte-se ao banco de dados
+   ```bash
+   mysql -h (end point do deu RDS) -u root -p
+   ```
+3. Execute esse comando para visualizar o endereço do Wordpress
+   ```bash
+   SELECT * FROM wp_options WHERE option_name = 'siteurl' OR option_name = 'home';
+   ```
+4. Altere o endereço para o DNS do load balancer com esse comando
+   ```bash
+   UPDATE wpoptions SET option_value = 'http://(DNS do Load Balncer)' WHERE option_name = 'siteurl' OR option_name = 'home'; = 'home';
+   ```
+
+## Passo 12: Teste e Verificação
 
 1. Verifique se o ambiente está funcionando corretamente, acessando o DNS público do Load Balancer.
 
